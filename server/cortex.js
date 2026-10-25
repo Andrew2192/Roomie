@@ -10,7 +10,7 @@ export class CortexError extends Error {
 }
 
 function getEndpoint() {
-  const accountUrl = process.env.SNOWFLAKE_ACCOUNT_URL;
+  let accountUrl = process.env.SNOWFLAKE_ACCOUNT_URL;
   const token = process.env.SNOWFLAKE_PAT;
 
   if (!accountUrl || !token) {
@@ -18,6 +18,13 @@ function getEndpoint() {
       "Set SNOWFLAKE_ACCOUNT_URL and SNOWFLAKE_PAT to enable room analysis.",
       503,
     );
+  }
+
+  // Users frequently paste bare account identifiers
+  // (e.g. "ab12345.snowflakecomputing.com") without the scheme; normalize to
+  // HTTPS rather than failing.
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(accountUrl.trim())) {
+    accountUrl = `https://${accountUrl.trim()}`;
   }
 
   let url;
@@ -147,7 +154,24 @@ export async function analyzeRoomImage(file) {
   }
 
   if (!response.ok) {
-    throw new CortexError(`Snowflake Cortex returned HTTP ${response.status}.`);
+    // Surface Snowflake's own detail when present — codes like 390432
+    // ("Network policy is required") are account-level issues, and without
+    // the message the response only says "HTTP 401".
+    let detail = null;
+    try {
+      const body = await response.json();
+      const message = body?.message || body?.detail || body?.error?.message;
+      if (typeof message === "string" && message.trim()) {
+        detail = `${message.trim()}${body?.code ? ` (code ${body.code})` : ""}`;
+      }
+    } catch {
+      // body was not JSON; fall back to the generic status-only error
+    }
+    throw new CortexError(
+      detail
+        ? `Snowflake Cortex rejected the request (HTTP ${response.status}): ${detail}`
+        : `Snowflake Cortex returned HTTP ${response.status}.`,
+    );
   }
 
   let result;

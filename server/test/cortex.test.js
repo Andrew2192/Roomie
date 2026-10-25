@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { analyzeRoomImage } from "../cortex.js";
+import { analyzeRoomImage, CortexError } from "../cortex.js";
 
 const originalFetch = globalThis.fetch;
 const originalAccountUrl = process.env.SNOWFLAKE_ACCOUNT_URL;
@@ -73,6 +73,28 @@ describe("Snowflake Cortex integration", () => {
     assert.deepEqual(result, validAnalysis);
   });
 
+  it("accepts an account URL pasted without the https:// scheme", async () => {
+    // Users commonly paste the account identifier without a scheme.
+    process.env.SNOWFLAKE_ACCOUNT_URL = "example.snowflakecomputing.com";
+    process.env.SNOWFLAKE_PAT = "test-token";
+
+    globalThis.fetch = async (url) => {
+      assert.equal(
+        url,
+        "https://example.snowflakecomputing.com/api/v2/cortex/v1/chat/completions",
+      );
+      return Response.json({
+        choices: [{ message: { content: JSON.stringify(validAnalysis) } }],
+      });
+    };
+
+    const result = await analyzeRoomImage({
+      mimetype: "image/png",
+      buffer: Buffer.from([1]),
+    });
+    assert.deepEqual(result, validAnalysis);
+  });
+
   it("rejects invalid model output instead of returning fabricated data", async () => {
     process.env.SNOWFLAKE_ACCOUNT_URL = "https://example.snowflakecomputing.com";
     process.env.SNOWFLAKE_PAT = "test-token";
@@ -107,6 +129,23 @@ describe("Snowflake Cortex integration", () => {
     await assert.rejects(
       analyzeRoomImage({ mimetype: "image/png", buffer: Buffer.from([1]) }),
       /invalid room analysis/i,
+    );
+  });
+
+  it("passes Snowflake's own error detail through to the caller", async () => {
+    process.env.SNOWFLAKE_ACCOUNT_URL = "https://example.snowflakecomputing.com";
+    process.env.SNOWFLAKE_PAT = "test-token";
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ code: "390432", message: "Fail : Network policy is required." }), {
+        status: 401,
+      });
+
+    await assert.rejects(
+      analyzeRoomImage({ mimetype: "image/png", buffer: Buffer.from([1]) }),
+      (error) =>
+        error instanceof CortexError &&
+        error.status === 502 &&
+        /Network policy is required[.] \(code 390432\)/.test(error.message),
     );
   });
 

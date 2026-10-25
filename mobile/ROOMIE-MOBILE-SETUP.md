@@ -75,3 +75,23 @@ In this native app the WebView receives that event after loading. Ensure the vie
 ## Optional Expo Go support check
 
 If Expo Go complains about a mismatched SDK, verify `package.json` Expo version and choose a matching version of Expo Go or scaffold using the version recommended by Expo docs for your physical iOS device. Run `npx expo-doctor@latest` to diagnose.
+
+## Status update (web viewer integration)
+
+- The web viewer (repo root, `src/App.jsx` + `Room3D`) now **handles the `ROOMIE_IMAGE` window message**: when the WebView injects a photo with the exact script above, the web pipeline starts automatically — no browser file picker needed. Verified headless-browser-side with the same injection call.
+- The web viewer's `RoomAnalysis` panel posts to `/api/analyze` same-origin via the Vite proxy, so no extra URL is needed for the AI analysis inside the WebView.
+- Expo Go compatibility verified: `npx expo-doctor` → 20/20 checks pass, and `npx expo export --platform ios` bundles the app (1.6 MB Hermes bytecode). All three native dependencies (`expo-image-picker`, `expo-image-manipulator`, `react-native-webview`) are bundled in Expo Go.
+- Run both dev servers on your LAN before opening Expo Go:
+
+  ```sh
+  # terminal 1 (repo root) — LAN-visible web viewer for the WebView
+  npm run dev:host
+
+  # terminal 2 (repo root/server) — Cortex backend, reachable by the phone
+  cd server && npm run dev
+
+  # terminal 3
+  cd mobile && npx expo start
+  ```
+
+  In `mobile/.env.local` set `EXPO_PUBLIC_API_URL=http://<YOUR-MAC-LAN-IP>:3001` and `EXPO_PUBLIC_3D_VIEWER_URL=http://<YOUR-MAC-LAN-IP>:5173` (the Mac's IP, not localhost).

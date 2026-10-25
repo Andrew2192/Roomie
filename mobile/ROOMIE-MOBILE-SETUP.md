@@ -31,7 +31,7 @@ Open Expo Go on your iPhone and sign in with the same Expo account. Scan the QR 
 
 ## Andrew: API handoff
 
-Set `EXPO_PUBLIC_API_URL` in `mobile/.env` to an address your iPhone can access, e.g. `http://YOUR-MAC-LAN-IP:3001` on the same Wi-Fi, or a deployed HTTPS URL. Do NOT include `/api/analyze` in the variable.
+Copy `mobile/.env.example` to `mobile/.env.local`, then set `EXPO_PUBLIC_API_URL` to an address your iPhone can access, e.g. `http://YOUR-MAC-LAN-IP:3001` on the same Wi-Fi, or a deployed HTTPS URL. Do NOT include `/api/analyze` in the variable. `.env.local` is ignored by Git so machine-specific URLs are not committed.
 
 Endpoint: `POST /api/analyze`; field `image` (JPEG file); JSON:
 
